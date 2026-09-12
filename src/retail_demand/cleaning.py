@@ -28,27 +28,16 @@ ADMINISTRATIVE_STOCK_CODES = {
 
 def clean_transactions(df: pd.DataFrame) -> pd.DataFrame:
     """
-
     Clean raw Online Retail II transactions for demand forecasting.
 
-    Clean rules:
+    Cleaning rules:
     - Remove exact duplicate rows.
     - Remove cancelled invoices.
     - Keep only positive quantities.
-    - Keep onlu positive prices.
+    - Keep only positive prices.
     - Remove administrative and non-merchandise StockCodes.
     - Keep rows with missing Customer ID.
     - Keep rows with missing Description when StockCode is available.
-
-    Parameters
-    ----------
-    df:
-        Raw transaction data.
-
-    Returns
-    -------
-    pd.DataFrame
-        Cleaned merchandise transactions suitable for demand analysis.
     """
 
     missing_columns = REQUIRED_COLUMNS.difference(df.columns)
@@ -63,16 +52,29 @@ def clean_transactions(df: pd.DataFrame) -> pd.DataFrame:
     # Exact duplicates would double-count demand.
     cleaned = cleaned.drop_duplicates()
 
-    # Cancelled invoices begin with "C".
-    invoice_codes = (
+    # Normalize identifier columns as strings.
+    cleaned["Invoice"] = (
         cleaned["Invoice"]
+        .astype("string")
+        .str.strip()
+    )
+
+    cleaned["StockCode"] = (
+        cleaned["StockCode"]
         .astype("string")
         .str.strip()
         .str.upper()
     )
 
+    # Cancelled invoices begin with "C".
+    cancelled_invoices = (
+        cleaned["Invoice"]
+        .str.upper()
+        .str.startswith("C", na=False)
+    )
+
     cleaned = cleaned.loc[
-        ~invoice_codes.str.startswith("C", na=False)
+        ~cancelled_invoices
     ].copy()
 
     # Demand must represent positive purchased units.
@@ -85,20 +87,13 @@ def clean_transactions(df: pd.DataFrame) -> pd.DataFrame:
         cleaned["Price"] > 0
     ].copy()
 
-    # Restrict known administrative/non-merchandise transaction codes.
-    stock_codes = (
-        cleaned["StockCode"]
-        .astype("string")
-        .str.strip()
-        .str.upper()
-    )
-
+    # Remove known administrative/non-merchandise transaction codes.
     non_merchandise = (
-        stock_codes.isin(ADMINISTRATIVE_STOCK_CODES)
-        | stock_codes.str.startswith("GIFT_", na=False)
+        cleaned["StockCode"].isin(ADMINISTRATIVE_STOCK_CODES)
+        | cleaned["StockCode"].str.startswith("GIFT_", na=False)
     )
 
-    cleaned= cleaned.loc[
+    cleaned = cleaned.loc[
         ~non_merchandise
     ].copy()
 

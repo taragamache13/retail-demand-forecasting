@@ -9,6 +9,8 @@ description = "End-to-end retail demand forecasting and inventory intelligence s
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "pandas",
+    "openpyxl",
+    "pyarrow",
 ]
 
 [project.optional-dependencies]
