@@ -51,7 +51,7 @@ def clean_transactions(df: pd.DataFrame) -> pd.DataFrame:
         Cleaned merchandise transactions suitable for demand analysis.
     """
 
-    missing_columns = REQUIRED_COLUMNS(df.columns)
+    missing_columns = REQUIRED_COLUMNS.difference(df.columns)
 
     if missing_columns:
         raise ValueError(
