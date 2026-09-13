@@ -1,6 +1,9 @@
 import pandas as pd
 
-from retail_demand.aggregation import aggregate_daily_demand
+from retail_demand.aggregation import (
+    aggregate_daily_demand,
+    fill_zero_demand_days,
+)
 
 
 def test_aggregate_daily_demand_sums_product_sales_by_day():
@@ -43,3 +46,30 @@ def test_aggregate_daily_demand_sums_product_sales_by_day():
         "StockCode",
         "UnitsSold",
     ]
+
+def test_fill_zero_demand_days_adds_missing_dates():
+    daily_demand = pd.DataFrame(
+        [
+            {
+                "Date": "2010-01-01",
+                "StockCode": "ABC1",
+                "UnitsSold": 5,
+            },
+            {
+                "Date": "2010-01-03",
+                "StockCode": "ABC1",
+                "UnitsSold": 8,
+            },
+        ]
+    )
+
+    completed = fill_zero_demand_days(daily_demand)
+
+    assert len(completed) == 3
+
+    jan_second = completed[
+        completed["Date"] == pd.Timestamp("2010-01-02")
+        ]
+
+    assert len(jan_second) == 1
+    assert jan_second["UnitsSold"].iloc[0] == 0
