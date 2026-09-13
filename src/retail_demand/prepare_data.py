@@ -4,10 +4,18 @@ import pandas as pd
 
 from retail_demand.cleaning import clean_transactions
 
+from retail_demand.aggregation import (
+    aggregate_daily_demand,
+    fill_zero_demand_days,
+)
+
 
 RAW_DATA_PATH = Path("data/raw/online_retail_II.xlsx")
 PROCESSED_DATA_PATH = Path(
-    "data/processed/retail_transactions_clean.paqruet"
+    "data/processed/retail_transactions_clean.parquet"
+)
+DAILY_DEMAND_PATH = Path(
+    "data/processed/daily_product_demand.parquet"
 )
 
 def load_raw_transactions(path: Path) -> pd.DataFrame:
@@ -68,6 +76,36 @@ def prepare_dataset(
     )
 
     print(f"Saved cleaned data to: {processed_path}")
+
+    daily_demand = aggregate_daily_demand(cleaned)
+
+    print(
+        f"Daily product rows before zero filling: "
+        f"{len(daily_demand):,}"
+    )
+
+    continuous_demand = fill_zero_demand_days(
+        daily_demand
+    )
+
+    print(
+        f"Daily product rows after zero filling:"
+        f"{len(continuous_demand):,}"
+    )
+
+    print(
+    f"Zero-demand rows: "
+    f"{(continuous_demand['UnitsSold'] == 0).sum():,}"
+)
+
+    continuous_demand.to_parquet(
+        DAILY_DEMAND_PATH,
+        index=False,
+    )
+    print(
+        f"Saved daily demand data to: "
+        f"{DAILY_DEMAND_PATH}"
+    )
 
     return cleaned
 
