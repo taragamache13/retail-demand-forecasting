@@ -6,22 +6,23 @@ import pandas as pd
 
 from retail_demand.baseline import trailing_mean_forecast
 
+
 REQUIRED_COLUMNS = {
     "Date",
     "StockCode",
     "UnitsSold",
 }
 
+
 def evaluate_trailing_mean_baseline(
-        daily_demand: pd.DataFrame,
-        eligible_stock_codes: Iterable[str],
-        horizon_days: int = 28,
-        window: int = 28,
+    daily_demand: pd.DataFrame,
+    eligible_stock_codes: Iterable[str],
+    horizon_days: int = 28,
+    window: int = 28,
 ) -> pd.DataFrame:
     """
-    
-    Evaluate the trailing-mean baseline using a time based holdout.
-    
+    Evaluate the trailing-mean baseline using a time-based holdout.
+
     For each eligible product:
     - Reserve the final horizon_days as test data.
     - Use earlier observations as training history.
@@ -70,11 +71,11 @@ def evaluate_trailing_mean_baseline(
             continue
 
         train = product_data.iloc[:-horizon_days]
-        test= product_data.iloc[-horizon_days:]
+        test = product_data.iloc[-horizon_days:]
 
         prediction = trailing_mean_forecast(
             train["UnitsSold"],
-            window=window
+            window=window,
         )
 
         absolute_errors = (
@@ -104,4 +105,4 @@ def evaluate_trailing_mean_baseline(
             }
         )
 
-        return pd.DataFrame(results)
+    return pd.DataFrame(results)
