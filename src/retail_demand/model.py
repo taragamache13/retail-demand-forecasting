@@ -15,7 +15,7 @@ def train_demand_model(
     """
 
     model = HistGradientBoostingRegressor(
-        loss="absolute_error",
+        loss="poisson",
         learning_rate=0.08,
         max_iter=200,
         max_leaf_nodes=31,
@@ -85,5 +85,13 @@ def evaluate_demand_model(
         "ml_mae": float(ml_mae),
         "baseline_mae": float(baseline_mae),
         "ml_wape": float(ml_wape),
-        "baseline_wape": float(baseline_wape)
+        "baseline_wape": float(baseline_wape),
+        "prediction_mean": float(predictions.mean()),
+        "prediction_max": float(predictions.max()),
+        "zero_prediction_rate": float(
+            (predictions == 0).mean()
+        ),
+        "actual_mean": float(
+            test["UnitsSold"].mean()
+        ),
     }

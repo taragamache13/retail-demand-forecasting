@@ -43,3 +43,6 @@ def test_model_trains_and_evaluates():
 
     assert metrics["ml_mae"] >= 0
     assert metrics["baseline_mae"] >= 0
+
+    assert metrics["prediction_max"] > 0
+    assert metrics["zero_prediction_rate"] < 1.0
