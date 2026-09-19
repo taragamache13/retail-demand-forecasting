@@ -135,4 +135,63 @@ def fill_zero_demand_days(
     return completed.sort_values(
         ["StockCode", "Date"]
     ).reset_index(drop=True)
-      
+
+def extend_products_to_end_date(
+        daily_demand: pd.DataFrame,
+        stock_codes: list[str],
+        end_date: pd.Timestamp,
+) -> pd.DataFrame:
+    """
+    Extend selected product time series through a common end date.
+    
+    Dates after a product's last observed sale are represented as 
+    zero-demand days.
+    """
+
+    demand = daily_demand.loc[
+        daily_demand["StockCode"].isin(stock_codes)
+    ] .copy()
+
+    demand["Date"] = pd.to_datetime(
+        demand["Date"],
+        errors="raise",
+    )
+
+    completed_products = []
+
+    for stock_code, product_data in demand.groupby("StockCode"):
+        product_data = product_data .sort_values("Date")
+
+        full_dates = pd.date_range(
+            start=product_data["Date"].min(),
+            end=end_date,
+            freq="D",
+        )
+
+        product_data = (
+            product_data
+            .set_index("Date")
+            .reindex(full_dates)
+        )  
+
+        product_data.index.name = "Date"
+        product_data["StockCode"] = stock_code
+
+        product_data["UnitsSold"] = (
+            product_data["UnitsSold"]
+            .fillna(0)
+            .astype(int)
+        ) 
+
+        completed_products.append(
+            product_data.reset_index()
+        ) 
+
+    return (
+        pd.concat(
+            completed_products,
+            ignore_index=True,
+        )
+        .sort_values(["StockCode", "Date"])
+        .reset_index(drop=True)
+    )
