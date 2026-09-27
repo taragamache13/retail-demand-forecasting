@@ -14,7 +14,10 @@ from retail_demand.selection import (
     select_active_products,
     select_eligible_products,
 )
-
+from retail_demand.error_analysis import (
+    create_prediction_results,
+    summarize_product_errors,
+)
 
 DAILY_DEMAND_PATH = Path(
     "data/processed/daily_product_demand.parquet"
@@ -116,14 +119,38 @@ def run_experiment() -> dict[str, float]:
         test,
     )
 
+    
+    prediction_results = create_prediction_results(
+    model,
+    test,
+    )
+
+    product_errors = summarize_product_errors(
+        prediction_results
+    )
+
+    product_errors["ForecastBias"] = (
+        product_errors["PredictedTotal"]
+        - product_errors["ActualTotal"]
+    )
+
+    total_absolute_error = (
+        product_errors["AbsoluteErrorSum"].sum()
+    )
+
+    product_errors["ErrorShare"] = (
+        product_errors["AbsoluteErrorSum"]
+        / total_absolute_error
+    )
+
     mae_improvement = (
         (
             results["baseline_mae"]
             - results["ml_mae"]
         )
-        / results["baseline_mae"]
-        * 100
-    )
+            / results["baseline_mae"]
+            * 100
+        )
 
     wape_improvement = (
         (
@@ -147,6 +174,70 @@ def run_experiment() -> dict[str, float]:
     print(
         f"WAPE improvement vs baseline: "
         f"{wape_improvement:.2f}%"
+    )
+
+    print("\nWORST PRODUCTS BY TOTAL ABSOLUTE ERROR")
+
+    worst_products = (
+    product_errors
+    .sort_values(
+        "AbsoluteErrorSum",
+        ascending=False,
+    )
+    .head(10)
+)
+
+    print(
+        worst_products[
+            [
+                "StockCode",
+                "ActualTotal",
+                "PredictedTotal",
+                "MAE",
+                "WAPE",
+                "ForecastBias",
+                "MaxActual",
+                "MaxPrediction",
+                "ErrorShare",
+            ]
+        ].to_string(index=False)
+    )
+
+    print("/LARGEST MODEL OVERPREDICTIONS")
+
+    largest_overpredictions = (
+        product_errors.sort_values(
+            "ForecastBias",
+            ascending=False,
+        )
+        .head(10)
+    )
+
+    print(
+        largest_overpredictions[
+            [
+                "StockCode",
+                "ActualTotal",
+                "PredictedTotal",
+                "ForecastBias",
+                "MaxActual",
+                "MaxPrediction",
+            ]
+        ].to_string(index=False)
+    )
+
+    error_output_path = Path(
+    "data/processed/product_error_summary.parquet"
+    )
+
+    product_errors.to_parquet(
+        error_output_path,
+        index=False,
+    )
+
+    print(
+        f"\nSaved product error summary to: "
+        f"{error_output_path}"
     )
 
     return results
