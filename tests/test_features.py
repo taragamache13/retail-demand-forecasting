@@ -27,3 +27,6 @@ def test_features_use_only_past_demand():
 
     assert row["rolling_mean_7"] == 25.0
     assert row["rolling_mean_28"] == 14.5
+    assert row["rolling_active_rate_28"] == 1.0
+    assert row["rolling_max_28"] == 28
+    assert pd.notna(row["rolling_std_28"])

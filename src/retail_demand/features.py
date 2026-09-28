@@ -68,6 +68,38 @@ def create_demand_features(
         .reset_index(level=0, drop=True)
     )
 
+    # Recent demand volatility
+    features["rolling_std_28"] = (
+        grouped
+        .shift(1)
+        .groupby(features["StockCode"])
+        .rolling(28)
+        .std()
+        .reset_index(level=0, drop=True)
+    )
+
+    # Fraction of the previous 28 days with positive demand.
+    features["rolling_active_rate_28"] = (
+        (features["UnitsSold"] > 0)
+        .groupby(features["StockCode"])
+        .shift(1)
+        .groupby(features["StockCode"])
+        .rolling(28)
+        .mean()
+        .reset_index(level=0, drop=True)
+    )
+
+    # Largest observed demand during the previous 28 days.
+    features["rolling_max_28"] = (
+        grouped
+        .shift(1)
+        .groupby(features["StockCode"])
+        .rolling(28)
+        .max()
+        .reset_index(level=0, drop=True)
+    )
+
+
     # Calendar features
     features["day_of_week"] = features["Date"].dt.dayofweek
     features["day_of_month"] = features["Date"].dt.day
