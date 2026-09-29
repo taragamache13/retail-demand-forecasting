@@ -33,6 +33,13 @@ def create_prediction_results(
         - results["Prediction"]
     ).abs()
 
+    results["BaselinePrediction"] = test["rolling_mean_28"]
+
+    results["BaselineAbsoluteError"] = (
+        results["UnitsSold"]
+        - results["BaselinePrediction"]
+    ).abs()
+
     return results
 
 
@@ -60,6 +67,64 @@ def summarize_product_errors(
     summary["WAPE"] = (
         summary["AbsoluteErrorSum"]
         / summary["ActualTotal"].replace(0, np.nan)
+    )
+
+    return summary
+
+def summarize_segment_performance(
+        prediction_results: pd.DataFrame,
+        segments: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Compare model and baseline performance by demand segment
+    """
+
+    combined = prediction_results.merge(
+        segments[
+            ["StockCode", "DemandSegment"]
+        ],
+        on="StockCode",
+        how="left",
+    )
+
+    summary = (
+        combined
+        .groupby("DemandSegment")
+        .agg(
+            Products=("StockCode", "nunique"),
+            TestRows=("UnitsSold", "size"),
+            ActualTotal=("UnitsSold", "sum"),
+            ModelMAE=("AbsoluteError", "mean"),
+            BaselineMAE=("BaselineAbsoluteError", "mean"),
+            ModelAbsoluteError=(
+                "AbsoluteError",
+                "sum",
+            ),
+            BaselineAbsoluteError=(
+                "BaselineAbsoluteError",
+                "sum",
+            ),
+        )
+        .reset_index()
+    )
+
+    summary["ModelWAPE"] = (
+        summary["ModelAbsoluteError"]
+        / summary["ActualTotal"]
+    )
+
+    summary["BaselineWAPE"] = (
+        summary["BaselineAbsoluteError"]
+        / summary["ActualTotal"]
+    )
+
+    summary["WAPEImprovementPct"] = (
+        (
+            summary["BaselineWAPE"]
+            - summary["ModelWAPE"]
+        )
+        / summary["BaselineWAPE"]
+        * 100
     )
 
     return summary
