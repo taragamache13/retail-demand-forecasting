@@ -17,7 +17,10 @@ from retail_demand.selection import (
 from retail_demand.error_analysis import (
     create_prediction_results,
     summarize_product_errors,
+    summarize_segment_performance,
 )
+from retail_demand.segmentation import calculate_demand_segments
+
 
 DAILY_DEMAND_PATH = Path(
     "data/processed/daily_product_demand.parquet"
@@ -69,6 +72,23 @@ def run_experiment() -> dict[str, float]:
         eligible_stock_codes=eligible["StockCode"].tolist(),
         cutoff_date=cutoff_date,
         activity_days=HOLDOUT_DAYS,
+    )
+
+    segmentation_history = extend_products_to_end_date(
+        daily_demand=selection_history,
+        stock_codes=active_stock_codes,
+        end_date=cutoff_date,
+    )
+
+    segments = calculate_demand_segments(
+        segmentation_history
+    )
+
+    print("\nDEMAND SEGMENTS")
+    print(
+        segments["DemandSegment"]
+        .value_counts()
+        .to_string()
     )
 
     # Extend every selected product through the same final date.
@@ -127,6 +147,11 @@ def run_experiment() -> dict[str, float]:
 
     product_errors = summarize_product_errors(
         prediction_results
+    )
+
+    segment_performance = summarize_segment_performance(
+        prediction_results,
+        segments,
     )
 
     product_errors["ForecastBias"] = (
@@ -238,6 +263,42 @@ def run_experiment() -> dict[str, float]:
     print(
         f"\nSaved product error summary to: "
         f"{error_output_path}"
+    )
+
+    print("\nPERFORMANCE BY DEMAND SEGMENT")
+
+    segment_display = segment_performance[
+        [
+            "DemandSegment",
+            "Products",
+            "TestRows",
+            "ModelMAE",
+            "BaselineMAE",
+            "ModelWAPE",
+            "BaselineWAPE",
+            "WAPEImprovementPct",
+        ]
+    ].copy()
+
+    print(
+        segment_display.to_string(
+            index=False,
+            float_format=lambda value: f"{value:.4f}",
+        )
+    )
+
+    segment_output_path = Path(
+        "data/processed/segment_performance.parquet"
+    )
+
+    segment_performance.to_parquet(
+        segment_output_path,
+        index=False,
+    )
+
+    print(
+        f"\nSaved segment performance to: "
+        f"{segment_output_path}"
     )
 
     return results
