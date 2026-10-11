@@ -26,6 +26,11 @@ from retail_demand.hybrid import (
     evaluate_hybrid_predictions,
 )
 
+from retail_demand.hurdle import (
+    evaluate_hurdle_model,
+    train_hurdle_model,
+)
+
 RESULTS_PATH = Path(
     "reports/benchmark_results.csv"
 )
@@ -142,8 +147,18 @@ def run_experiment() -> dict[str, float]:
         train
     )
 
+    hurdle_classifier, hurdle_quantity_model = (
+        train_hurdle_model(train)
+    )
+
     results = evaluate_demand_model(
         model,
+        test,
+    )
+
+    hurdle_results = evaluate_hurdle_model(
+        hurdle_classifier,
+        hurdle_quantity_model,
         test,
     )
 
@@ -266,6 +281,81 @@ def run_experiment() -> dict[str, float]:
         * 100
     )
 
+    print("\nHURDLE MODEL RESULTS")
+
+    print(
+        f"hurdle_mae: "
+        f"{hurdle_results['hurdle_mae']:.4f}"
+    )
+
+    print(
+        f"hurdle_wape: "
+        f"{hurdle_results['hurdle_wape']:.4f}"
+    )
+
+    print(
+        f"prediction_mean: "
+        f"{hurdle_results['prediction_mean']:.4f}"
+    )
+
+    print(
+        f"prediction_max: "
+        f"{hurdle_results['prediction_max']:.4f}"
+    )
+
+    print(
+        f"actual_mean: "
+        f"{hurdle_results['actual_mean']:.4f}"
+    )
+
+    hurdle_mae_vs_baseline = (
+        (
+            results["baseline_mae"]
+            - hurdle_results["hurdle_mae"]
+        )
+        / results["baseline_mae"]
+        * 100
+    )
+
+    hurdle_wape_vs_baseline = (
+        (
+            results["baseline_wape"]
+            - hurdle_results["hurdle_wape"]
+        )
+        / results["baseline_wape"]
+        * 100
+    )
+
+    print(
+        f"Hurdle MAE improvement vs baseline: "
+        f"{hurdle_mae_vs_baseline:.2f}%"
+    )
+
+    print(
+        f"Hurdle WAPE improvement vs baseline: "
+        f"{hurdle_wape_vs_baseline:.2f}"
+    )
+
+    hurdle_mae_vs_hybrid = (
+        (
+            hybrid_metrics["hybrid_mae"]
+            - hurdle_results["hurdle_mae"]
+        )
+        / hybrid_metrics["hybrid_mae"]
+        * 100
+    )
+
+    hurdle_wape_vs_hybrid = (
+        (
+            hybrid_metrics["hybrid_wape"]
+            - hurdle_results["hurdle_wape"]
+        )
+        / hybrid_metrics["hybrid_wape"]
+        * 100
+    )
+
+    
+
     benchmark_results = pd.DataFrame(
         [
             {
@@ -282,6 +372,11 @@ def run_experiment() -> dict[str, float]:
                 "Strategy": "Segment-routed hybrid",
                 "MAE": hybrid_metrics["hybrid_mae"],
                 "WAPE": hybrid_metrics["hybrid_wape"],
+            },
+            {
+                "Strategy": "Two-stage hurdle model",
+                "MAE": hurdle_results["hurdle_mae"],
+                "WAPE": hurdle_results["hurdle_wape"]
             },
         ]
     )
