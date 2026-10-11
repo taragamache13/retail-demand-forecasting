@@ -21,6 +21,10 @@ from retail_demand.error_analysis import (
 )
 from retail_demand.segmentation import calculate_demand_segments
 
+from retail_demand.hybrid import (
+    create_hybrid_predictions,
+    evaluate_hybrid_predictions,
+)
 
 DAILY_DEMAND_PATH = Path(
     "data/processed/daily_product_demand.parquet"
@@ -154,6 +158,15 @@ def run_experiment() -> dict[str, float]:
         segments,
     )
 
+    hybrid_results = create_hybrid_predictions(
+        prediction_results,
+        segments,
+    )
+
+    hybrid_metrics = evaluate_hybrid_predictions(
+        hybrid_results
+    )
+
     product_errors["ForecastBias"] = (
         product_errors["PredictedTotal"]
         - product_errors["ActualTotal"]
@@ -201,90 +214,172 @@ def run_experiment() -> dict[str, float]:
         f"{wape_improvement:.2f}%"
     )
 
+    print("\nHYBRID MODEL RESULTS")
+
+    print(
+        f"hybrid_mae: "
+        f"{hybrid_metrics['hybrid_mae']:.4f}"
+    )
+
+    print(
+        f"hybrid_wape: "
+        f"{hybrid_metrics['hybrid_wape']:.4f}"
+    )
+
+    hybrid_mae_vs_baseline = (
+        (
+            results["baseline_mae"]
+            - hybrid_metrics["hybrid_mae"]
+        )
+        / results["baseline_mae"]
+        * 100
+    )
+
+    hybrid_wape_vs_baseline = (
+        (
+            results["baseline_wape"]
+            - hybrid_metrics["hybrid_wape"]
+        )
+        / results["baseline_wape"]
+        * 100
+    )
+
+    hybrid_mae_vs_ml = (
+        (
+            results["ml_mae"]
+            - hybrid_metrics["hybrid_mae"]
+        )
+        / results["ml_mae"]
+        * 100
+    )
+
+    hybrid_wape_vs_ml = (
+        (
+            results["ml_wape"]
+            - hybrid_metrics["hybrid_wape"]
+        )
+        / results["ml_wape"]
+        * 100
+    )
+
+    print(
+        f"Hybrid MAE improvement vs baseline: "
+        f"{hybrid_mae_vs_baseline:.2f}%"
+    )
+
+    print(
+        f"Hybrid WAPE improvement vs baseline: "
+        f"{hybrid_wape_vs_baseline:.2f}%"
+    )
+
+    print(
+        f"Hybrid MAE improvement vs ML: "
+        f"{hybrid_mae_vs_ml:.2f}%"
+    )
+
+    hybrid_output_path = Path(
+    "data/processed/hybrid_predictions.parquet"
+    )
+
+    hybrid_results.to_parquet(
+        hybrid_output_path,
+        index=False,
+    )
+
+    print(
+        f"\nSaved hybrid predictions to: "
+        f"{hybrid_output_path}"
+    )
+
+    print(
+            f"Hybrid WAPE improvement vs ML: "
+            f"{hybrid_wape_vs_ml:.2f}%"
+    )
+
     print("\nWORST PRODUCTS BY TOTAL ABSOLUTE ERROR")
 
     worst_products = (
-    product_errors
-    .sort_values(
-        "AbsoluteErrorSum",
-        ascending=False,
-    )
-    .head(10)
-)
-
-    print(
-        worst_products[
-            [
-                "StockCode",
-                "ActualTotal",
-                "PredictedTotal",
-                "MAE",
-                "WAPE",
-                "ForecastBias",
-                "MaxActual",
-                "MaxPrediction",
-                "ErrorShare",
-            ]
-        ].to_string(index=False)
-    )
-
-    print("/LARGEST MODEL OVERPREDICTIONS")
-
-    largest_overpredictions = (
-        product_errors.sort_values(
-            "ForecastBias",
+        product_errors
+        .sort_values(
+            "AbsoluteErrorSum",
             ascending=False,
         )
         .head(10)
     )
 
     print(
-        largest_overpredictions[
-            [
-                "StockCode",
-                "ActualTotal",
-                "PredictedTotal",
+            worst_products[
+                [
+                    "StockCode",
+                    "ActualTotal",
+                    "PredictedTotal",
+                    "MAE",
+                    "WAPE",
+                    "ForecastBias",
+                    "MaxActual",
+                    "MaxPrediction",
+                    "ErrorShare",
+                ]
+            ].to_string(index=False)
+        )
+
+    print("/LARGEST MODEL OVERPREDICTIONS")
+
+    largest_overpredictions = (
+            product_errors.sort_values(
                 "ForecastBias",
-                "MaxActual",
-                "MaxPrediction",
-            ]
-        ].to_string(index=False)
-    )
-
-    error_output_path = Path(
-    "data/processed/product_error_summary.parquet"
-    )
-
-    product_errors.to_parquet(
-        error_output_path,
-        index=False,
-    )
+                ascending=False,
+            )
+            .head(10)
+        )
 
     print(
-        f"\nSaved product error summary to: "
-        f"{error_output_path}"
-    )
+            largest_overpredictions[
+                [
+                    "StockCode",
+                    "ActualTotal",
+                    "PredictedTotal",
+                    "ForecastBias",
+                    "MaxActual",
+                    "MaxPrediction",
+                ]
+            ].to_string(index=False)
+        )
+
+    error_output_path = Path(
+        "data/processed/product_error_summary.parquet"
+        )
+
+    product_errors.to_parquet(
+            error_output_path,
+            index=False,
+        )
+
+    print(
+            f"\nSaved product error summary to: "
+            f"{error_output_path}"
+        )
 
     print("\nPERFORMANCE BY DEMAND SEGMENT")
 
     segment_display = segment_performance[
-        [
-            "DemandSegment",
-            "Products",
-            "TestRows",
-            "ModelMAE",
-            "BaselineMAE",
-            "ModelWAPE",
-            "BaselineWAPE",
-            "WAPEImprovementPct",
-        ]
-    ].copy()
+            [
+                "DemandSegment",
+                "Products",
+                "TestRows",
+                "ModelMAE",
+                "BaselineMAE",
+                "ModelWAPE",
+                "BaselineWAPE",
+                "WAPEImprovementPct",
+            ]
+        ].copy()
 
     print(
-        segment_display.to_string(
-            index=False,
-            float_format=lambda value: f"{value:.4f}",
-        )
+            segment_display.to_string(
+                index=False,
+                float_format=lambda value: f"{value:.4f}",
+            )
     )
 
     segment_output_path = Path(
