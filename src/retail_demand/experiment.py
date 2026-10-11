@@ -26,6 +26,10 @@ from retail_demand.hybrid import (
     evaluate_hybrid_predictions,
 )
 
+RESULTS_PATH = Path(
+    "reports/benchmark_results.csv"
+)
+
 DAILY_DEMAND_PATH = Path(
     "data/processed/daily_product_demand.parquet"
 )
@@ -262,9 +266,44 @@ def run_experiment() -> dict[str, float]:
         * 100
     )
 
+    benchmark_results = pd.DataFrame(
+        [
+            {
+                "Strategy": "28-day trailing mean baseline",
+                "MAE": results["baseline_mae"],
+                "WAPE": results["baseline_wape"],
+            },
+            {
+                "Strategy": "Poisson gradient boosting",
+                "MAE": results["ml_mae"],
+                "WAPE": results["ml_wape"],
+            },
+            {
+                "Strategy": "Segment-routed hybrid",
+                "MAE": hybrid_metrics["hybrid_mae"],
+                "WAPE": hybrid_metrics["hybrid_wape"],
+            },
+        ]
+    )
+
+    RESULTS_PATH.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    benchmark_results.to_csv(
+        RESULTS_PATH,
+        index=False,
+    )
+
     print(
-        f"Hybrid MAE improvement vs baseline: "
-        f"{hybrid_mae_vs_baseline:.2f}%"
+    f"\nSaved benchmark results to: "
+    f"{RESULTS_PATH}"
+)
+
+    print(
+            f"Hybrid MAE improvement vs baseline: "
+            f"{hybrid_mae_vs_baseline:.2f}%"
     )
 
     print(
