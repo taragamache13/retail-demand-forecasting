@@ -90,3 +90,84 @@ def croston_sba_forecast(
     return float(
         sba_correction * croston_forecast
     )
+
+def evaluate_croston_sba(
+    daily_demand: pd.DataFrame,
+    stock_codes: list[str],
+    cutoff_date: pd.Timestamp,
+    horizon_days: int = 28,
+    alpha: float = 0.1,
+) -> pd.DataFrame:
+    """
+    Evaluate Croston/SBA using rolling one-day-ahead forecasts.
+
+    Each forecast uses only demand observed before that date.
+    After the actual demand is observed, it becomes part of the
+    history for the next day's prediction.
+    """
+
+    demand = daily_demand.loc[
+        daily_demand["StockCode"].isin(stock_codes)
+    ].copy()
+
+    demand["Date"] = pd.to_datetime(
+        demand["Date"],
+        errors="raise",
+    )
+
+    end_date = (
+        cutoff_date
+        + pd.Timedelta(days=horizon_days)
+    )
+
+    results = []
+
+    for stock_code, product_data in demand.groupby("StockCode"):
+        product_data = product_data.sort_values("Date")
+
+        history = (
+            product_data.loc[
+                product_data["Date"] <= cutoff_date,
+                "UnitsSold",
+            ]
+            .reset_index(drop=True)
+            .copy()
+        )
+
+        test = product_data.loc[
+            (product_data["Date"] > cutoff_date)
+            & (product_data["Date"] <= end_date)
+        ].copy()
+
+        if len(test) != horizon_days:
+            continue
+
+        for _, row in test.iterrows():
+            prediction = croston_sba_forecast(
+                history,
+                alpha=alpha,
+            )
+
+            actual = float(row["UnitsSold"])
+
+            results.append(
+                {
+                    "Date": row["Date"],
+                    "StockCode": stock_code,
+                    "UnitsSold": actual,
+                    "CrostonPrediction": prediction,
+                    "CrostonAbsoluteError": abs(
+                        actual - prediction
+                    ),
+                }
+            )
+
+            history = pd.concat(
+                [
+                    history,
+                    pd.Series([actual]),
+                ],
+                ignore_index=True,
+            )
+
+    return pd.DataFrame(results)
