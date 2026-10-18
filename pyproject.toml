@@ -12,6 +12,7 @@ dependencies = [
     "openpyxl",
     "pyarrow",
     "scikit-learn",
+    "joblib",
 ]
 
 [project.optional-dependencies]
