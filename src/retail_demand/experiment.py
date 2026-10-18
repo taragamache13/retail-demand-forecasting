@@ -22,7 +22,9 @@ from retail_demand.error_analysis import (
 from retail_demand.segmentation import calculate_demand_segments
 
 from retail_demand.hybrid import (
+    create_enhanced_hybrid_predictions,
     create_hybrid_predictions,
+    evaluate_enhanced_hybrid_predictions,
     evaluate_hybrid_predictions,
 )
 
@@ -216,6 +218,20 @@ def run_experiment() -> dict[str, float]:
         hybrid_results
     )
 
+    enhanced_hybrid_results = (
+        create_enhanced_hybrid_predictions(
+            prediction_results=prediction_results,
+            segments=segments,
+            croston_results=croston_results,
+        )
+    )
+
+    enhanced_hybrid_metrics = (
+        evaluate_enhanced_hybrid_predictions(
+            enhanced_hybrid_results
+        )
+    )
+
     croston_mae = (
         croston_results["CrostonAbsoluteError"]
         .mean()
@@ -307,6 +323,74 @@ def run_experiment() -> dict[str, float]:
     print(
         f"hybrid_wape: "
         f"{hybrid_metrics['hybrid_wape']:.4f}"
+    )
+
+    print("\nENHANCED HYBRID MODEL RESULTS")
+
+    print(
+        f"enhanced_hybrid_mae: "
+        f"{enhanced_hybrid_metrics['enhanced_hybrid_mae']:.4f}"
+    )
+
+    print(
+        f"enhanced_hybrid_wape: "
+        f"{enhanced_hybrid_metrics['enhanced_hybrid_wape']:.4f}"
+    )
+
+    enhanced_mae_vs_baseline = (
+        (
+            results["baseline_mae"]
+            - enhanced_hybrid_metrics["enhanced_hybrid_mae"]
+        )
+        / results["baseline_mae"]
+        * 100
+    )
+
+    enhanced_wape_vs_baseline = (
+        (
+            results["baseline_wape"]
+            - enhanced_hybrid_metrics["enhanced_hybrid_wape"]
+        )
+        / results["baseline_wape"]
+        * 100
+    )
+
+    enhanced_mae_vs_hybrid = (
+        (
+            hybrid_metrics["hybrid_mae"]
+            - enhanced_hybrid_metrics["enhanced_hybrid_mae"]
+        )
+        / hybrid_metrics["hybrid_mae"]
+        * 100
+    )
+
+    enhanced_wape_vs_hybrid = (
+        (
+            hybrid_metrics["hybrid_wape"]
+            - enhanced_hybrid_metrics["enhanced_hybrid_wape"]
+        )
+        / hybrid_metrics["hybrid_wape"]
+        * 100
+    )
+
+    print(
+        f"Enhanced MAE improvement vs baseline: "
+        f"{enhanced_mae_vs_baseline:.2f}%"
+    )
+
+    print(
+        f"Enhanced WAPE improvement vs baseline: "
+        f"{enhanced_wape_vs_baseline:.2f}%"
+    )
+
+    print(
+        f"Enhanced MAE improvement vs current hybrid: "
+        f"{enhanced_mae_vs_hybrid:.2f}%"
+    )
+
+    print(
+        f"Enhanced WAPE improvement vs current hybrid: "
+        f"{enhanced_wape_vs_hybrid:.2f}%"
     )
 
     print("\nCROSTON SBA RESULTS")
@@ -531,6 +615,15 @@ def run_experiment() -> dict[str, float]:
                 "MAE": hurdle_results["hurdle_mae"],
                 "WAPE": hurdle_results["hurdle_wape"]
             },
+            {
+                "Strategy": "Croston-enhanced hybrid",
+                "MAE": enhanced_hybrid_metrics[
+                    "enhanced_hybrid_mae"
+                ],
+                "WAPE": enhanced_hybrid_metrics[
+                    "enhanced_hybrid_wape"
+                ],
+            },
         ]
     )
 
@@ -547,7 +640,7 @@ def run_experiment() -> dict[str, float]:
     print(
     f"\nSaved benchmark results to: "
     f"{RESULTS_PATH}"
-)
+    )
 
     print(
             f"Hybrid MAE improvement vs baseline: "
@@ -581,6 +674,20 @@ def run_experiment() -> dict[str, float]:
     print(
             f"Hybrid WAPE improvement vs ML: "
             f"{hybrid_wape_vs_ml:.2f}%"
+    )
+
+    enhanced_output_path = Path(
+        "data/processed/enhanced_hybrid_predictions.parquet"
+    )
+
+    enhanced_hybrid_results.to_parquet(
+        enhanced_output_path,
+        index=False,
+    )
+
+    print(
+        f"\nSaved enhanced hybrid predictions to: "
+        f"{enhanced_output_path}"
     )
 
     print("\nWORST PRODUCTS BY TOTAL ABSOLUTE ERROR")
