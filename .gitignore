@@ -1,4 +1,5 @@
 artifacts/
+reports/next_day_forecast.csv
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
