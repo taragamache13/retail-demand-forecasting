@@ -31,6 +31,9 @@ from retail_demand.hurdle import (
     train_hurdle_model,
 )
 
+from retail_demand.croston import evaluate_croston_sba
+
+
 RESULTS_PATH = Path(
     "reports/benchmark_results.csv"
 )
@@ -111,6 +114,33 @@ def run_experiment() -> dict[str, float]:
         end_date=final_date,
     )
 
+    croston_stock_codes = segments.loc[
+        segments["DemandSegment"].isin(
+            ["lumpy", "intermittent"]
+        ),
+        "StockCode",
+    ].tolist()
+
+    croston_results = evaluate_croston_sba(
+        daily_demand=completed_demand,
+        stock_codes=croston_stock_codes,
+        cutoff_date=cutoff_date,
+        horizon_days=HOLDOUT_DAYS,
+        alpha=0.1,
+    )
+
+    expected_croston_rows = (
+        len(croston_stock_codes)
+        * HOLDOUT_DAYS
+    )
+
+    if len(croston_results) != expected_croston_rows:
+        raise ValueError(
+            "Incomplete Croston holdout: "
+            f"expected {expected_croston_rows:,} rows "
+            f"but found {len(croston_results):,}."
+        )
+
     features = create_demand_features(
         completed_demand
     )
@@ -186,6 +216,40 @@ def run_experiment() -> dict[str, float]:
         hybrid_results
     )
 
+    croston_mae = (
+        croston_results["CrostonAbsoluteError"]
+        .mean()
+    )
+
+    croston_actual_total = (
+        croston_results["UnitsSold"]
+        .sum()
+    )
+
+    croston_wape = (
+        croston_results["CrostonAbsoluteError"].sum()
+        / croston_actual_total
+    )
+
+    hybrid_croston_subset = hybrid_results.loc[
+        hybrid_results["StockCode"].isin(
+            croston_stock_codes
+        )
+    ].copy()
+
+    hybrid_subset_mae = (
+        hybrid_croston_subset[
+            "HybridAbsoluteError"
+        ].mean()
+    )
+
+    hybrid_subset_wape = (
+        hybrid_croston_subset[
+            "HybridAbsoluteError"
+        ].sum()
+        / hybrid_croston_subset["UnitsSold"].sum()
+    )
+
     product_errors["ForecastBias"] = (
         product_errors["PredictedTotal"]
         - product_errors["ActualTotal"]
@@ -243,6 +307,95 @@ def run_experiment() -> dict[str, float]:
     print(
         f"hybrid_wape: "
         f"{hybrid_metrics['hybrid_wape']:.4f}"
+    )
+
+    print("\nCROSTON SBA RESULTS")
+
+    print(
+        f"Products evaluated: "
+        f"{len(croston_stock_codes):,}"
+    )
+
+    print(
+        f"Test rows: "
+        f"{len(croston_results):,}"
+    )
+
+    print(
+        f"croston_mae: "
+        f"{croston_mae:.4f}"
+    )
+
+    print(
+        f"croston_wape: "
+        f"{croston_wape:.4f}"
+    )
+
+    print(
+        f"Current hybrid MAE on same products: "
+        f"{hybrid_subset_mae:.4f}"
+    )
+
+    print(
+        f"Current hybrid WAPE on same products: "
+        f"{hybrid_subset_wape:.4f}"
+    )
+
+    croston_wape_improvement = (
+        (
+            hybrid_subset_wape
+            - croston_wape
+        )
+        / hybrid_subset_wape
+        * 100
+    )
+
+    print(
+        f"Croston WAPE improvement vs hybrid: "
+        f"{croston_wape_improvement:.2f}%"
+    )
+
+    croston_segment_results = croston_results.merge(
+        segments[
+            ["StockCode", "DemandSegment"]
+        ],
+        on="StockCode",
+        how="left",
+    )
+
+    croston_segment_summary = (
+        croston_segment_results
+        .groupby("DemandSegment")
+        .agg(
+            Products=("StockCode", "nunique"),
+            TestRows=("UnitsSold", "size"),
+            ActualTotal=("UnitsSold", "sum"),
+            CrostonMAE=(
+                "CrostonAbsoluteError",
+                "sum",
+            ),
+            CrostonAbsoluteError=(
+                "CrostonAbsoluteError",
+                "sum",
+            ),
+        )
+        .reset_index()
+    )
+
+    croston_segment_summary["CrostonWAPE"] = (
+        croston_segment_summary[
+            "CrostonAbsoluteError"
+        ]
+        / croston_segment_summary["ActualTotal"]
+    ) 
+
+    print("\nCROSTON PERFORMANCE BY SEGMENT")
+
+    print(
+        croston_segment_summary.to_string(
+            index=False,
+            float_format=lambda value: f"{value:.4f}",
+        )
     )
 
     hybrid_mae_vs_baseline = (
